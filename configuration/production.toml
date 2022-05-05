@@ -1,5 +1,5 @@
 [database]
-port = 5432
-username = 'postgres'
-password = 'postgres'
+port = 8000
+username = ''
+password = ''
 host = '0.0.0.0'
