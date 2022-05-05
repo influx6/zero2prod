@@ -1,11 +1,28 @@
 use std::net::TcpListener;
 
 use actix_web::web::Data;
+use once_cell::sync::Lazy;
+use secrecy::ExposeSecret;
 use sqlx::postgres::PgQueryResult;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
 
 use zero2prod::config::{get_configuration, Configuration, DatabaseSettings};
+use zero2prod::telemetry::{get_subscriber, init_subscriber};
+
+static TRACING: Lazy<()> = Lazy::new(|| {
+    let default_filter_level = "info".to_string();
+    let subscriber_name = "test".to_string();
+    if std::env::var("TEST_LOG").is_ok() {
+        init_subscriber(get_subscriber(
+            "test".into(),
+            "debug".into(),
+            std::io::stdout,
+        ));
+    } else {
+        init_subscriber(get_subscriber("test".into(), "debug".into(), std::io::sink));
+    }
+});
 
 pub struct TestApp {
     pub config: Configuration,
@@ -14,6 +31,8 @@ pub struct TestApp {
 }
 
 pub async fn spawn_app() -> TestApp {
+    Lazy::force(&TRACING);
+
     let mut configuration = get_configuration().expect("should load configuration");
 
     let db_name = Uuid::new_v4().to_string();
@@ -36,10 +55,14 @@ pub async fn spawn_app() -> TestApp {
 }
 
 pub async fn configure_database(database_settings: &DatabaseSettings) -> PgPool {
-    let mut db_connection =
-        PgConnection::connect(database_settings.connection_string_without_db().as_str())
-            .await
-            .expect("failed to connect to postgres.");
+    let mut db_connection = PgConnection::connect(
+        database_settings
+            .connection_string_without_db()
+            .expose_secret()
+            .as_str(),
+    )
+    .await
+    .expect("failed to connect to postgres.");
 
     db_connection
         .execute(format!(r#"CREATE DATABASE "{}";"#, database_settings.database_name).as_str())
@@ -47,9 +70,14 @@ pub async fn configure_database(database_settings: &DatabaseSettings) -> PgPool 
         .expect("Failed to create database");
 
     // Migrate database
-    let db_pool = PgPool::connect(database_settings.connection_string().as_str())
-        .await
-        .expect("failed to connect to postgres.");
+    let db_pool = PgPool::connect(
+        database_settings
+            .connection_string()
+            .expose_secret()
+            .as_str(),
+    )
+    .await
+    .expect("failed to connect to postgres.");
 
     sqlx::migrate!("./migrations")
         .run(&db_pool)
