@@ -5,4 +5,84 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# on Windows
+# ```
+# cargo install -f cargo-binutils
+# rustup component add llvm-tools-preview
+# ```
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+# on Linux
+# - Ubuntu, `sudo apt-get install lld clang
+# - Arch, `sudo pacman -S lld clang`
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "linker=clang", "-C", "link-arg=-fuse-ld=lld"]
+
+# on MacOS
+# - Brew, `brew install michaeleisel/zld/zld`
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
+
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+path = "src/main.rs"
+name = "zero2prod"
+
+[dev-dependencies]
+reqwest = "0.11"
+
 [dependencies]
+actix-web = "4"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[dependencies.env_logger]
+version = "0.9"
+
+[dependencies.log]
+version = "0.4"
+
+[dependencies.tracing]
+version = "0.1"
+featues = ["log"]
+
+[dependencies.tracing-log]
+version = "0.1"
+
+[dependencies.tracing-subscriber]
+version = "0.3"
+features = ["registry", "env-filter"]
+
+[dependencies.tracing-bunyan-formatter]
+version = "0.3"
+
+[dependencies.config]
+version = "0.11"
+
+[dependencies.chrono]
+version = "0.4.15"
+
+[dependencies.uuid]
+version = "0.8.1"
+features = ["v4"]
+
+[dependencies.sqlx]
+version = "0.5.7"
+default-features = false
+features = [
+    "runtime-actix-rustls",
+    "macros",
+    "postgres",
+    "uuid",
+    "chrono",
+    "migrate",
+]
