@@ -1,9 +1,7 @@
-port = 7890
+[app]
 host = "127.0.0.1"
 
 [database]
-port = 5432
 username = 'postgres'
 password = 'postgres'
 host = '192.168.128.147'
-database_name = "newsletter"

@@ -25,4 +25,8 @@
   <component name="UnicodeBrowser">
     <option name="fontName" value="JetBrains Mono" />
   </component>
+  <component name="XMakeProjectSettings">
+    <option name="currentArchitecture" value="x86_64" />
+    <option name="workingDirectory" value="$PROJECT_DIR$" />
+  </component>
 </project>

@@ -39,14 +39,14 @@ pub async fn spawn_app() -> TestApp {
     configuration.database.database_name = db_name;
     let db_connection = configure_database(&configuration.database).await;
 
-    let listener = TcpListener::bind(format!("{}:0", configuration.host.clone()))
+    let listener = TcpListener::bind(format!("{}:0", configuration.app.host.clone()))
         .expect("failed to bind to random port");
     let port = listener.local_addr().unwrap().port();
     let server =
         zero2prod::run::run(listener, db_connection.clone()).expect("Failed to bind address");
     let _ = tokio::spawn(server);
 
-    let hostname = configuration.host.clone();
+    let hostname = configuration.app.host.clone();
     TestApp {
         config: configuration,
         pool: db_connection.clone(),

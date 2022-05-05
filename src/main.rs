@@ -1,6 +1,7 @@
 use std::net::TcpListener;
 
 use secrecy::ExposeSecret;
+use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use tracing;
 
@@ -17,17 +18,21 @@ async fn main() -> std::io::Result<()> {
     ));
 
     let configuration = get_configuration().expect("Should have loaded configuration");
-    let db_connection = PgPool::connect(
-        configuration
-            .database
-            .connection_string()
-            .expose_secret()
-            .as_str(),
-    )
-    .await
-    .expect("failed to connect to postgres.");
-    let listener = TcpListener::bind(format!("{}:{}", configuration.host, configuration.port))
-        .expect("failed to bind to random port");
+    let db_connection = PgPoolOptions::new()
+        .connect_timeout(std::time::Duration::from_secs(2))
+        .connect_lazy(
+            configuration
+                .database
+                .connection_string()
+                .expose_secret()
+                .as_str(),
+        )
+        .expect("failed to connect to postgres.");
+    let listener = TcpListener::bind(format!(
+        "{}:{}",
+        configuration.app.host, configuration.app.port
+    ))
+    .expect("failed to bind to random port");
 
     tracing::info!(
         "Starting service on address: {}",

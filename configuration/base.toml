@@ -1,0 +1,10 @@
+[app]
+port = 7890
+host = "0.0.0.0"
+
+[database]
+port = 5432
+username = ''
+password = ''
+host = '0.0.0.0'
+database_name = "newsletter"
