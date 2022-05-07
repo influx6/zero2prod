@@ -1,5 +1,3 @@
 [database]
 port = 8000
-username = ''
-password = ''
-host = '0.0.0.0'
+require_ssl = true

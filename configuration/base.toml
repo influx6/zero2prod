@@ -7,4 +7,5 @@ port = 5432
 username = ''
 password = ''
 host = '0.0.0.0'
+require_ssl = false
 database_name = "newsletter"

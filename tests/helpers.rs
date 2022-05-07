@@ -55,14 +55,9 @@ pub async fn spawn_app() -> TestApp {
 }
 
 pub async fn configure_database(database_settings: &DatabaseSettings) -> PgPool {
-    let mut db_connection = PgConnection::connect(
-        database_settings
-            .connection_string_without_db()
-            .expose_secret()
-            .as_str(),
-    )
-    .await
-    .expect("failed to connect to postgres.");
+    let mut db_connection = PgConnection::connect_with(&database_settings.without_db())
+        .await
+        .expect("failed to connect to postgres.");
 
     db_connection
         .execute(format!(r#"CREATE DATABASE "{}";"#, database_settings.database_name).as_str())
@@ -70,14 +65,9 @@ pub async fn configure_database(database_settings: &DatabaseSettings) -> PgPool 
         .expect("Failed to create database");
 
     // Migrate database
-    let db_pool = PgPool::connect(
-        database_settings
-            .connection_string()
-            .expose_secret()
-            .as_str(),
-    )
-    .await
-    .expect("failed to connect to postgres.");
+    let db_pool = PgPool::connect_with(database_settings.with_db())
+        .await
+        .expect("failed to connect to postgres.");
 
     sqlx::migrate!("./migrations")
         .run(&db_pool)

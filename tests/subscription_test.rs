@@ -10,15 +10,9 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
     let app = spawn_app().await;
     let client = reqwest::Client::new();
 
-    let mut db_connection = PgConnection::connect(
-        app.config
-            .database
-            .connection_string()
-            .expose_secret()
-            .as_str(),
-    )
-    .await
-    .expect("failed to connect to postgres.");
+    let mut db_connection = PgConnection::connect_with(&app.config.database.with_db())
+        .await
+        .expect("failed to connect to postgres.");
 
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
     let response = client

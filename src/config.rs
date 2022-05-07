@@ -1,5 +1,7 @@
-use env_logger::Env;
 use secrecy::{ExposeSecret, Secret};
+use serde_aux::prelude::deserialize_number_from_string;
+use sqlx::postgres::{PgConnectOptions, PgSslMode};
+use sqlx::ConnectOptions;
 
 pub enum Environment {
     Local,
@@ -32,50 +34,47 @@ impl TryFrom<String> for Environment {
 
 #[derive(serde::Deserialize)]
 pub struct DatabaseSettings {
-    pub database_name: String,
     pub username: String,
     pub password: Secret<String>,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
+    pub require_ssl: bool,
+    pub database_name: String,
 }
 
 impl DatabaseSettings {
-    pub fn connection_string_without_db(&self) -> Secret<String> {
-        Secret::new(format!(
-            "postgres://{}:{}@{}:{}",
-            self.username,
-            self.password.expose_secret(),
-            self.host,
-            self.port,
-        ))
+    pub fn with_db(&self) -> PgConnectOptions {
+        let mut options = self.with_some_db(&self.database_name);
+        options.log_statements(tracing::log::LevelFilter::Trace);
+        options
     }
 
-    pub fn connection_string_for_db(&self, database_name: &str) -> Secret<String> {
-        Secret::new(format!(
-            "postgres://{}:{}@{}:{}/{}",
-            self.username,
-            self.password.expose_secret(),
-            self.host,
-            self.port,
-            database_name,
-        ))
+    pub fn with_some_db(&self, database_name: &str) -> PgConnectOptions {
+        self.without_db().database(database_name)
     }
 
-    pub fn connection_string(&self) -> Secret<String> {
-        Secret::new(format!(
-            "postgres://{}:{}@{}:{}/{}",
-            self.username,
-            self.password.expose_secret(),
-            self.host,
-            self.port,
-            self.database_name,
-        ))
+    pub fn without_db(&self) -> PgConnectOptions {
+        let ssl_mode = if self.require_ssl {
+            PgSslMode::Require
+        } else {
+            // try encrypted if available else fallback to unencrypted.
+            PgSslMode::Prefer
+        };
+
+        PgConnectOptions::new()
+            .host(&self.host)
+            .username(&self.username)
+            .password(&self.password.expose_secret())
+            .port(self.port)
+            .ssl_mode(ssl_mode)
     }
 }
 
 #[derive(serde::Deserialize)]
 pub struct AppConfig {
     pub host: String,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
 }
 
