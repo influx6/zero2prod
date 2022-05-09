@@ -1,12 +1,6 @@
-//!src/domain.rs
+//! src/domain/subscriber_name.rs
 
 use unicode_segmentation::UnicodeSegmentation;
-
-#[derive(Debug)]
-pub struct NewSubscriber {
-    pub email: String,
-    pub name: SubscriberName,
-}
 
 #[derive(Debug)]
 pub struct SubscriberName(String);
@@ -41,7 +35,7 @@ impl AsRef<str> for SubscriberName {
 mod tests {
     use claim::{assert_err, assert_ok};
 
-    use crate::domain::SubscriberName;
+    use super::SubscriberName;
 
     #[test]
     fn a_256_grapheme_long_name_is_valid() {

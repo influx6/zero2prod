@@ -5,20 +5,24 @@ use tracing;
 use unicode_segmentation::UnicodeSegmentation;
 use uuid::Uuid;
 
-use crate::domain::{NewSubscriber, SubscriberName};
-
-pub fn is_valid_name(s: &str) -> bool {
-    let is_empty_or_whitespace = s.trim().is_empty();
-    let is_too_long = s.graphemes(true).count() > 256;
-    let forbidden_characters = ['/', '(', ')', '<', '>', '\\', '{', '}'];
-    let contains_forbidden_characters = s.chars().any(|g| forbidden_characters.contains(&g));
-    return !(is_empty_or_whitespace || is_too_long || contains_forbidden_characters);
-}
+use crate::domain::new_subscriber::NewSubscriber;
+use crate::domain::subscriber_email::SubscriberEmail;
+use crate::domain::subscriber_name::SubscriberName;
 
 #[derive(serde::Deserialize)]
 pub struct SubscriptionForm {
     name: String,
     email: String,
+}
+
+impl TryFrom<SubscriptionForm> for NewSubscriber {
+    type Error = String;
+
+    fn try_from(form: SubscriptionForm) -> Result<Self, Self::Error> {
+        let name = SubscriberName::parse(form.name)?;
+        let email = SubscriberEmail::parse(form.email)?;
+        Ok(Self { email, name })
+    }
 }
 
 #[tracing::instrument(
@@ -33,26 +37,14 @@ pub async fn subscribe(
     form: web::Form<SubscriptionForm>,
     pool: web::Data<PgPool>,
 ) -> impl Responder {
-    let name = match SubscriberName::parse(form.name.clone()) {
+    let new_subscriber = match form.0.try_into() {
         Ok(name) => name,
-        Err(_) => return HttpResponse::BadRequest().finish(),
-    };
-
-    let new_subscriber = NewSubscriber {
-        email: form.email.clone(),
-        name,
+        Err(_) => return HttpResponse::BadRequest(),
     };
 
     return match insert_subscriber(&pool, &new_subscriber).await {
-        Ok(_) => {
-            tracing::info!(
-                "Created new subscription for user: {} and email: {} in db",
-                form.name,
-                form.email,
-            );
-            HttpResponse::Ok().finish()
-        }
-        Err(_) => HttpResponse::InternalServerError().finish(),
+        Ok(_) => HttpResponse::Ok(),
+        Err(_) => HttpResponse::InternalServerError(),
     };
 }
 
@@ -71,7 +63,7 @@ pub async fn insert_subscriber(
     VALUES ($1,$2,$3,$4)
     "#,
         Uuid::new_v4(),
-        subscriber.email,
+        subscriber.email.as_ref(),
         subscriber.name.as_ref(),
         Utc::now()
     )
