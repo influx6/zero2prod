@@ -40,6 +40,9 @@ name = "zero2prod"
 [dev-dependencies.once_cell]
 version = "1"
 
+[dev-dependencies.linkify]
+version = "0.8"
+
 [dev-dependencies.serde_json]
 version = "1"
 
