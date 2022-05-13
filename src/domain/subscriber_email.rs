@@ -1,7 +1,5 @@
 //! src/domain/subscriber_email.rs
 
-use std::fmt::format;
-
 use validator::validate_email;
 
 #[derive(Debug)]
@@ -25,7 +23,6 @@ impl AsRef<str> for SubscriberEmail {
 #[cfg(test)]
 mod tests {
     use claim::assert_err;
-    use claim::assert_ok;
     use fake::faker::internet::en::SafeEmail;
     use fake::Fake;
 

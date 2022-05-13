@@ -1,3 +1,8 @@
 [database]
 port = 8000
 require_ssl = true
+
+
+[email_client]
+base_url = "https://api.postmarkapp.com"
+sender_email = "alex.ewetumo@ewe-studios.com"

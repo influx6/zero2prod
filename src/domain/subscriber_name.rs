@@ -69,7 +69,6 @@ mod tests {
 
     #[test]
     fn invalid_characters_are_rejected() {
-        let name = "".to_string();
         for name in &['/', '(', ')', '<', '>', '\\', '{', '}'] {
             assert_err!(SubscriberName::parse(name.to_string()));
         }

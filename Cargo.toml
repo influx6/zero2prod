@@ -37,17 +37,33 @@ path = "src/lib.rs"
 path = "src/main.rs"
 name = "zero2prod"
 
-[dev-dependencies]
-reqwest = "0.11"
-
 [dev-dependencies.once_cell]
 version = "1"
 
+[dev-dependencies.serde_json]
+version = "1"
+
+[dev-dependencies.wiremock]
+version = "0.5"
+
+[dev-dependencies.tokio]
+version = "1"
+features = ["rt", "macros"]
+
 [dependencies]
 actix-web = "4"
-serde = { version = "1", features = ["derive"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+
+[dependencies.tokio]
+version = "1"
+features = ["macros", "rt-multi-thread"]
+
+[dependencies.reqwest]
+version = "0.11"
+features = ["json", "rustls-tls"]
 
 [dependencies.tracing-actix-web]
 version = "0.5"

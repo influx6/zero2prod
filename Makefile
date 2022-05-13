@@ -25,6 +25,6 @@ docker-up:
 up:	docker-up cargo-ci
 
 down:
-	docker-compose down
+	docker-compose down -v --remove-orphans
 
 clean: coverage lint fmt fmt-check audit

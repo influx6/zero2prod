@@ -1,13 +1,11 @@
-use std::net::TcpListener;
-
-use actix_web::web::Data;
 use once_cell::sync::Lazy;
-use secrecy::ExposeSecret;
 use sqlx::postgres::PgQueryResult;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
+use wiremock::MockServer;
 
 use zero2prod::config::{get_configuration, Configuration, DatabaseSettings};
+use zero2prod::startup::{get_connection_pool, AppServer};
 use zero2prod::telemetry::{get_subscriber, init_subscriber};
 
 static TRACING: Lazy<()> = Lazy::new(|| {
@@ -26,31 +24,56 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 
 pub struct TestApp {
     pub config: Configuration,
+    pub email_server: MockServer,
     pub addr: String,
     pub pool: PgPool,
+}
+
+impl TestApp {
+    pub async fn post_subscriptions(&self, body: String) -> reqwest::Response {
+        reqwest::Client::new()
+            .post(&format!("{}/subscriptions", self.addr))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body)
+            .send()
+            .await
+            .expect("Failed to execute request")
+    }
 }
 
 pub async fn spawn_app() -> TestApp {
     Lazy::force(&TRACING);
 
-    let mut configuration = get_configuration().expect("should load configuration");
+    let email_server = MockServer::start().await;
+    let email_server_url = email_server.uri();
 
-    let db_name = Uuid::new_v4().to_string();
-    configuration.database.database_name = db_name;
-    let db_connection = configure_database(&configuration.database).await;
+    let configuration = {
+        let mut c = get_configuration().expect("should load configuration");
+        let db_name = Uuid::new_v4().to_string();
 
-    let listener = TcpListener::bind(format!("{}:0", configuration.app.host.clone()))
-        .expect("failed to bind to random port");
-    let port = listener.local_addr().unwrap().port();
-    let server =
-        zero2prod::run::run(listener, db_connection.clone()).expect("Failed to bind address");
-    let _ = tokio::spawn(server);
+        c.email_client.base_url = email_server_url.into();
+        c.database.database_name = db_name;
+        c.app.port = 0;
+        c
+    };
 
-    let hostname = configuration.app.host.clone();
+    // configure and migrate database
+    configure_database(&configuration.database).await;
+
+    let server = AppServer::build(configuration.clone())
+        .await
+        .expect("should have created server");
+
+    let addr = format!("http://{}", server.to_server_address());
+    let _ = tokio::spawn(server.run_until_stopped());
+
+    let pool = get_connection_pool(&configuration.database);
+
     TestApp {
+        pool,
+        addr,
+        email_server,
         config: configuration,
-        pool: db_connection.clone(),
-        addr: format!("http://{}:{}", hostname, port),
     }
 }
 
