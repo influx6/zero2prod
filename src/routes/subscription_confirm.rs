@@ -52,8 +52,8 @@ pub async fn get_subscriber_id_from_token(
     subscriber_token: &str,
 ) -> Result<Option<Uuid>, sqlx::Error> {
     let result = sqlx::query!(
-        r#"SELECT subscriber_id FROM subscription_tokens WHERE subscription_token = $1"#,
-        subscription_token,
+        r#"SELECT subscription_id FROM subscriptions_tokens WHERE subscription_token = $1"#,
+        subscriber_token,
     )
     .fetch_optional(pool)
     .await
@@ -61,5 +61,5 @@ pub async fn get_subscriber_id_from_token(
         tracing::error!("Failed to execute query: {:?}", e);
         e
     })?;
-    Ok(result.map(|r| r.subscriber_id))
+    Ok(result.map(|r| r.subscription_id))
 }
