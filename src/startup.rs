@@ -37,7 +37,12 @@ impl AppServer {
 
         let address = configuration.app.host.clone();
         let port = listener.local_addr().unwrap().port();
-        let server = run(listener, db_connection, email_client)?;
+        let server = run(
+            listener,
+            db_connection,
+            email_client,
+            configuration.app.domain,
+        )?;
 
         Ok(Self {
             port,

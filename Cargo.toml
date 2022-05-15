@@ -56,6 +56,10 @@ features = ["rt", "macros"]
 [dependencies]
 actix-web = "4"
 
+[dependencies.rand]
+version = "0.8"
+features = ["std_rng"]
+
 [dependencies.serde]
 version = "1"
 features = ["derive"]

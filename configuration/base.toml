@@ -1,5 +1,6 @@
 [app]
 port = 7890
+domain = "http://some-domain"
 host = "0.0.0.0"
 
 [database]
@@ -14,7 +15,7 @@ database_name = "newsletter"
 # value in milliseconds
 send_timeout_ms = 10000 # 10secs
 # URL/URI of the email provider host
-base_url = "localhost"
+base_url = "some-email-provider-domain"
 # sender email to be used to represent the `From` block of a email
 sender_email = "test@gmail.com"
 # Authorization token from the postmark or similar service

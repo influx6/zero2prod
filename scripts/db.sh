@@ -61,7 +61,7 @@ sqlx database create
 sqlx migrate run
 
 # generate new offline json for sqlx
-cargo sqlx prepare -- --bin zero2prod
+cargo sqlx prepare -- --lib
 
 # for development sake i wish to drop this
 # DROP TABLE IF EXISTS _sqlx_migrations
