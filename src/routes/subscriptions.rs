@@ -60,16 +60,10 @@ impl std::error::Error for StoreTokenError {
 pub enum SubscriberError {
     #[error("{0}")]
     ValidationError(String),
-    #[error("Failed to store the confirmation token for a new subscriber.")]
-    StoreTokenError(#[from] StoreTokenError),
-    #[error("Failed to send confirmation email.")]
-    SendEmailError(#[from] reqwest::Error),
-    #[error("Failed to acquire Postgres connection from the pool.")]
-    PoolError(#[source] sqlx::Error),
-    #[error("Failed to insert new subscriber in the database.")]
-    InsertSubscriberError(#[source] sqlx::Error),
-    #[error("Failed to commit SQL transaction to store a new subscriber.")]
-    TransactionCommitError(#[source] sqlx::Error),
+
+    // Transparent delegates both `Display` and `source` implementation to the type wrapped by `Unexpected`.
+    #[error("{1}")]
+    UnexpectedError(#[source] Box<dyn std::error::Error>, String),
 }
 
 impl std::fmt::Debug for SubscriberError {
@@ -78,28 +72,11 @@ impl std::fmt::Debug for SubscriberError {
     }
 }
 
-// impl std::error::Error for SubscriberError {
-//     fn source(&self) -> Option<&(dyn Error + 'static)> {
-//         match self {
-//             SubscriberError::ValidationError(_) => None,
-//             SubscriberError::StoreTokenError(e) => Some(e),
-//             SubscriberError::SendEmailError(e) => Some(e),
-//             SubscriberError::PoolError(e) => Some(e),
-//             SubscriberError::InsertSubscriberError(e) => Some(e),
-//             SubscriberError::TransactionCommitError(e) => Some(e),
-//         }
-//     }
-// }
-
 impl ResponseError for SubscriberError {
     fn status_code(&self) -> StatusCode {
         match self {
             SubscriberError::ValidationError(_) => StatusCode::BAD_REQUEST,
-            SubscriberError::TransactionCommitError(_)
-            | SubscriberError::PoolError(_)
-            | SubscriberError::InsertSubscriberError(_)
-            | SubscriberError::StoreTokenError(_)
-            | SubscriberError::SendEmailError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            SubscriberError::UnexpectedError(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -138,13 +115,40 @@ pub async fn subscribe(
         .0
         .try_into()
         .map_err(SubscriberError::ValidationError)?;
-    let mut transaction = pool.begin().await.map_err(SubscriberError::PoolError)?;
+
+    let mut transaction = pool.begin().await.map_err(|e| {
+        SubscriberError::UnexpectedError(
+            Box::new(e),
+            "Failed to acquire a postgres connection from the pool".into(),
+        )
+    })?;
+
     let subscriber_id = insert_subscriber(&mut transaction, &new_subscriber)
         .await
-        .map_err(SubscriberError::InsertSubscriberError)?;
+        .map_err(|e| {
+            SubscriberError::UnexpectedError(
+                Box::new(e),
+                "Failed to insert new subscriber into the database".into(),
+            )
+        })?;
 
     let subscription_token = generate_subscription_token();
-    insert_token(&mut transaction, subscriber_id, &subscription_token).await?;
+
+    insert_token(&mut transaction, subscriber_id, &subscription_token)
+        .await
+        .map_err(|e| {
+            SubscriberError::UnexpectedError(
+                Box::new(e),
+                "Failed to store confirmation token for a new subscriber".into(),
+            )
+        })?;
+
+    transaction.commit().await.map_err(|e| {
+        SubscriberError::UnexpectedError(
+            Box::new(e),
+            "Failed to commit SQL transaction to store a new subscriber".into(),
+        )
+    })?;
 
     send_confirmation_email(
         &email_client,
@@ -152,12 +156,10 @@ pub async fn subscribe(
         &domain.0,
         &subscription_token,
     )
-    .await?;
-
-    transaction
-        .commit()
-        .await
-        .map_err(SubscriberError::TransactionCommitError)?;
+    .await
+    .map_err(|e| {
+        SubscriberError::UnexpectedError(Box::new(e), "Failed to send confirmation email".into())
+    })?;
 
     Ok(HttpResponse::Ok())
 }
