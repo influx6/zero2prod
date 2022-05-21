@@ -61,5 +61,6 @@ pub async fn get_subscriber_id_from_token(
         tracing::error!("Failed to execute query: {:?}", e);
         e
     })?;
+
     Ok(result.map(|r| r.subscription_id))
 }
