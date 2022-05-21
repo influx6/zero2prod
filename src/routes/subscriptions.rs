@@ -58,30 +58,18 @@ impl std::error::Error for StoreTokenError {
 
 #[derive(thiserror::Error)]
 pub enum SubscriberError {
+    #[error("{0}")]
     ValidationError(String),
-    StoreTokenError(StoreTokenError),
-    SendEmailError(reqwest::Error),
-    PoolError(sqlx::Error),
-    InsertSubscriberError(sqlx::Error),
-    TransactionCommitError(sqlx::Error),
-}
-
-impl From<reqwest::Error> for SubscriberError {
-    fn from(e: reqwest::Error) -> Self {
-        Self::SendEmailError(e)
-    }
-}
-
-impl From<StoreTokenError> for SubscriberError {
-    fn from(e: StoreTokenError) -> Self {
-        Self::StoreTokenError(e)
-    }
-}
-
-impl From<String> for SubscriberError {
-    fn from(e: String) -> Self {
-        Self::ValidationError(e)
-    }
+    #[error("Failed to store the confirmation token for a new subscriber.")]
+    StoreTokenError(#[from] StoreTokenError),
+    #[error("Failed to send confirmation email.")]
+    SendEmailError(#[from] reqwest::Error),
+    #[error("Failed to acquire Postgres connection from the pool.")]
+    PoolError(#[source] sqlx::Error),
+    #[error("Failed to insert new subscriber in the database.")]
+    InsertSubscriberError(#[source] sqlx::Error),
+    #[error("Failed to commit SQL transaction to store a new subscriber.")]
+    TransactionCommitError(#[source] sqlx::Error),
 }
 
 impl std::fmt::Debug for SubscriberError {
@@ -90,49 +78,18 @@ impl std::fmt::Debug for SubscriberError {
     }
 }
 
-impl std::fmt::Display for SubscriberError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SubscriberError::ValidationError(e) => {
-                write!(f, "{}", e)
-            }
-            SubscriberError::StoreTokenError(_) => {
-                write!(
-                    f,
-                    "Failed to store the confirmation token for a new subscriber"
-                )
-            }
-            SubscriberError::SendEmailError(_) => {
-                write!(f, "Failed to send a confirmation email.")
-            }
-            SubscriberError::PoolError(_) => {
-                write!(f, "Failed to acquire a Postgres connection from the pool")
-            }
-            SubscriberError::InsertSubscriberError(_) => {
-                write!(f, "Failed to insert new subscriber in the database.")
-            }
-            SubscriberError::TransactionCommitError(_) => {
-                write!(
-                    f,
-                    "Failed to commit SQL transaction to store a new subscriber."
-                )
-            }
-        }
-    }
-}
-
-impl std::error::Error for SubscriberError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match self {
-            SubscriberError::ValidationError(_) => None,
-            SubscriberError::StoreTokenError(e) => Some(e),
-            SubscriberError::SendEmailError(e) => Some(e),
-            SubscriberError::PoolError(e) => Some(e),
-            SubscriberError::InsertSubscriberError(e) => Some(e),
-            SubscriberError::TransactionCommitError(e) => Some(e),
-        }
-    }
-}
+// impl std::error::Error for SubscriberError {
+//     fn source(&self) -> Option<&(dyn Error + 'static)> {
+//         match self {
+//             SubscriberError::ValidationError(_) => None,
+//             SubscriberError::StoreTokenError(e) => Some(e),
+//             SubscriberError::SendEmailError(e) => Some(e),
+//             SubscriberError::PoolError(e) => Some(e),
+//             SubscriberError::InsertSubscriberError(e) => Some(e),
+//             SubscriberError::TransactionCommitError(e) => Some(e),
+//         }
+//     }
+// }
 
 impl ResponseError for SubscriberError {
     fn status_code(&self) -> StatusCode {
@@ -177,7 +134,10 @@ pub async fn subscribe(
     email_client: web::Data<EmailClient>,
     domain: web::Data<ApplicationBaseUrl>,
 ) -> Result<impl Responder, SubscriberError> {
-    let new_subscriber = form.0.try_into()?;
+    let new_subscriber = form
+        .0
+        .try_into()
+        .map_err(SubscriberError::ValidationError)?;
     let mut transaction = pool.begin().await.map_err(SubscriberError::PoolError)?;
     let subscriber_id = insert_subscriber(&mut transaction, &new_subscriber)
         .await
