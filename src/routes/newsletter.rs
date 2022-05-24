@@ -29,7 +29,7 @@ struct ConfirmedSubscriber {
 #[tracing::instrument(name = "Get confirmed subscribers", skip(pool))]
 async fn get_confirmed_subscribers(
     pool: &PgPool,
-) -> Result<Vec<ConfirmedSubscriber>, anyhow::Error> {
+) -> Result<Vec<Result<ConfirmedSubscriber, anyhow::Error>>, anyhow::Error> {
     struct Row {
         email: String,
     }
@@ -48,14 +48,8 @@ async fn get_confirmed_subscribers(
     let confirmed_subscribers = row
         .into_iter()
         .map(|r| match SubscriberEmail::parse(r.email) {
-            Ok(email) => Some(ConfirmedSubscriber { email }),
-            Err(error) => {
-                tracing::warn!(
-                    "A confirmed subscriber is using an invalid email address.\n{}",
-                    error,
-                );
-                None
-            }
+            Ok(email) => Ok(ConfirmedSubscriber { email }),
+            Err(error) => Err(anyhow::anyhow!(error)),
         })
         .collect();
 
@@ -95,6 +89,7 @@ pub async fn publish_newsletter(
 ) -> Result<HttpResponse, PublishError> {
     let subscribers = get_confirmed_subscribers(&pool).await?;
     for subscriber in subscribers {
+        match subscribers {}
         email_client
             .send_email(
                 subscriber.email,
