@@ -2,9 +2,7 @@ use sqlx::{Connection, PgConnection};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 
-use crate::helpers::spawn_app;
-
-pub mod helpers;
+use crate::utils::helpers::spawn_app;
 
 #[tokio::test]
 async fn confirmations_without_token_are_rejected_with_a_400() {

@@ -4,9 +4,7 @@ use tokio::spawn;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 
-use crate::helpers::spawn_app;
-
-pub mod helpers;
+use crate::utils::helpers::spawn_app;
 
 #[tokio::test]
 async fn subscribe_returns_a_200_for_valid_form_data() {

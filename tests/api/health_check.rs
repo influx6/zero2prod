@@ -1,6 +1,4 @@
-use crate::helpers::spawn_app;
-
-mod helpers;
+use crate::utils::helpers::spawn_app;
 
 #[tokio::test]
 async fn health_check_endpoint_returns_200() {
