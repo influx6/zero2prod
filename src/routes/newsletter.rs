@@ -23,15 +23,19 @@ pub struct BodyData {
 }
 
 struct ConfirmedSubscriber {
-    email: String,
+    email: SubscriberEmail,
 }
 
 #[tracing::instrument(name = "Get confirmed subscribers", skip(pool))]
 async fn get_confirmed_subscribers(
     pool: &PgPool,
 ) -> Result<Vec<ConfirmedSubscriber>, anyhow::Error> {
+    struct Row {
+        email: String,
+    }
+
     let rows = sqlx::query_as!(
-        ConfirmedSubscriber,
+        Row,
         r#"
         SELECT email
         FROM subscriptions
@@ -41,7 +45,14 @@ async fn get_confirmed_subscribers(
     .fetch_all(pool)
     .await?;
 
-    Ok(rows)
+    let confirmed_subscribers = row
+        .into_iter()
+        .map(|r| ConfirmedSubscriber {
+            email: SubscriberEmail::parse(r.email).unwrap(),
+        })
+        .collect();
+
+    Ok(confirmed_subscribers)
 }
 
 #[derive(thiserror: Error)]
@@ -76,7 +87,6 @@ pub async fn publish_newsletter(
     email_client: web::Data<EmailClient>,
 ) -> Result<HttpResponse, PublishError> {
     let subscribers = get_confirmed_subscribers(&pool).await?;
-
     for subscriber in subscribers {
         email_client
             .send_email(
