@@ -1,8 +1,8 @@
 use std::fmt::{Display, Formatter};
 
+use actix_web::{HttpResponse, ResponseError, web};
 use actix_web::body::BoxBody;
 use actix_web::http::StatusCode;
-use actix_web::{web, HttpResponse, ResponseError};
 use anyhow::Context;
 use sqlx::PgPool;
 
@@ -37,14 +37,14 @@ async fn get_confirmed_subscribers(
         WHERE status = 'confirmed'
         "#,
     )
-    .fetch_all(pool)
-    .await?
-    .into_iter()
-    .map(|r| match SubscriberEmail::parse(r.email) {
-        Ok(email) => Ok(ConfirmedSubscriber { email }),
-        Err(error) => Err(anyhow::anyhow!(error)),
-    })
-    .collect();
+        .fetch_all(pool)
+        .await?
+        .into_iter()
+        .map(|r| match SubscriberEmail::parse(r.email) {
+            Ok(email) => Ok(ConfirmedSubscriber { email }),
+            Err(error) => Err(anyhow::anyhow!(error)),
+        })
+        .collect();
 
     Ok(rows)
 }
@@ -78,6 +78,7 @@ pub async fn publish_newsletter(
     for subscriber in subscribers {
         match subscriber {
             Ok(sub) => {
+                println!("Sending email request to {}", &sub.email);
                 email_client
                     .send_email(
                         &sub.email,
@@ -91,10 +92,11 @@ pub async fn publish_newsletter(
                     .with_context(|| format!("Failed to send newsletter issue to {}", sub.email))?;
             }
             Err(error) => {
+                println!("failed Sending email request to");
                 tracing::warn!(
                     error.cause_chain = ?error,
                     "Skipping a confirmed subscriber. Their stored contract details is invalid."
-                )
+                );
             }
         }
     }

@@ -1,9 +1,9 @@
 use tokio::spawn;
 use tracing::enabled;
-use wiremock::matchers::{any, method, path};
 use wiremock::{Mock, ResponseTemplate};
+use wiremock::matchers::{any, method, path};
 
-use crate::utils::helpers::{spawn_app, ConfirmationLinks, TestApp};
+use crate::utils::helpers::{ConfirmationLinks, spawn_app, TestApp};
 
 async fn create_unconfirmed_subscriber(app: &TestApp) -> ConfirmationLinks {
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
@@ -67,6 +67,33 @@ async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
     assert_eq!(response.status().as_u16(), 200);
 }
 
+
+#[tokio::test]
+async fn newsletters_are_delivered_to_confirmed_subscribers() {
+    // arrange
+    let app = spawn_app().await;
+    create_confirmed_subscriber(&app);
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
+
+    let newsletter_request_body = serde_json::json!({
+        "title": "Newsletter title",
+        "content": {
+            "text": "Newsletter body as plain text",
+            "html": "<p>Newsletter body as html</p>",
+        }
+    });
+
+    // assert
+    let response = app.post_newsletters(newsletter_request_body).await;
+    assert_eq!(response.status().as_u16(), 200);
+}
+
 #[tokio::test]
 async fn newsletters_returns_400_for_invalid_data() {
     // arrange
@@ -100,30 +127,4 @@ async fn newsletters_returns_400_for_invalid_data() {
             error_message
         )
     }
-}
-
-#[tokio::test]
-async fn newsletters_are_delivered_to_confirmed_subscribers() {
-    // arrange
-    let app = spawn_app().await;
-    create_confirmed_subscriber(&app);
-
-    Mock::given(path("/email"))
-        .and(method("POST"))
-        .respond_with(ResponseTemplate::new(200))
-        // .expect(1)
-        .mount(&app.email_server)
-        .await;
-
-    let newsletter_request_body = serde_json::json!({
-        "title": "Newsletter title",
-        "content": {
-            "text": "Newsletter body as plain text",
-            "html": "<p>Newsletter body as html</p>",
-        }
-    });
-
-    // assert
-    let response = app.post_newsletters(newsletter_request_body).await;
-    assert_eq!(response.status().as_u16(), 200);
 }
