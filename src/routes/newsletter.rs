@@ -30,12 +30,7 @@ struct ConfirmedSubscriber {
 async fn get_confirmed_subscribers(
     pool: &PgPool,
 ) -> Result<Vec<Result<ConfirmedSubscriber, anyhow::Error>>, anyhow::Error> {
-    struct Row {
-        email: String,
-    }
-
-    let rows = sqlx::query_as!(
-        Row,
+    let rows = sqlx::query!(
         r#"
         SELECT email
         FROM subscriptions
@@ -43,34 +38,26 @@ async fn get_confirmed_subscribers(
         "#,
     )
     .fetch_all(pool)
-    .await?;
+    .await?
+    .into_iter()
+    .map(|r| match SubscriberEmail::parse(r.email) {
+        Ok(email) => Ok(ConfirmedSubscriber { email }),
+        Err(error) => Err(anyhow::anyhow!(error)),
+    })
+    .collect();
 
-    let confirmed_subscribers = row
-        .into_iter()
-        .map(|r| match SubscriberEmail::parse(r.email) {
-            Ok(email) => Ok(ConfirmedSubscriber { email }),
-            Err(error) => Err(anyhow::anyhow!(error)),
-        })
-        .collect();
-
-    Ok(confirmed_subscribers)
+    Ok(rows)
 }
 
-#[derive(thiserror: Error)]
+#[derive(thiserror::Error)]
 pub enum PublishError {
     #[error(transparent)]
     UnexpectedError(#[from] anyhow::Error),
 }
 
-impl std::error::Debug for PublishError {
+impl std::fmt::Debug for PublishError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         error_chain_fmt(self, f)
-    }
-}
-
-impl Display for PublishError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
     }
 }
 
@@ -83,24 +70,33 @@ impl ResponseError for PublishError {
 }
 
 pub async fn publish_newsletter(
-    _body: web::Json<BodyData>,
+    body: web::Json<BodyData>,
     pool: web::Data<PgPool>,
     email_client: web::Data<EmailClient>,
 ) -> Result<HttpResponse, PublishError> {
     let subscribers = get_confirmed_subscribers(&pool).await?;
     for subscriber in subscribers {
-        match subscribers {}
-        email_client
-            .send_email(
-                subscriber.email,
-                &body.title,
-                &body.content.html,
-                &body.content.text,
-            )
-            .await
-            // provides a lazy method approach, we only pay the cost of heap allocation for format! when there is actually an error
-            // unlike .context() where we pay it regardless.
-            .with_context(|| format!("Failed to send newsletter issue to {}", subscriber.email))?;
+        match subscriber {
+            Ok(sub) => {
+                email_client
+                    .send_email(
+                        &sub.email,
+                        &body.title,
+                        &body.content.html,
+                        &body.content.text,
+                    )
+                    .await
+                    // provides a lazy method approach, we only pay the cost of heap allocation for format! when there is actually an error
+                    // unlike .context() where we pay it regardless.
+                    .with_context(|| format!("Failed to send newsletter issue to {}", sub.email))?;
+            }
+            Err(error) => {
+                tracing::warn!(
+                    error.cause_chain = ?error,
+                    "Skipping a confirmed subscriber. Their stored contract details is invalid."
+                )
+            }
+        }
     }
     Ok(HttpResponse::Ok().finish())
 }
