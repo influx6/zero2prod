@@ -1,3 +1,4 @@
+mod authentication;
 mod health_check;
 mod newsletter;
 mod subscription;

@@ -1,9 +1,9 @@
 use tokio::spawn;
 use tracing::enabled;
-use wiremock::{Mock, ResponseTemplate};
 use wiremock::matchers::{any, method, path};
+use wiremock::{Mock, ResponseTemplate};
 
-use crate::utils::helpers::{ConfirmationLinks, spawn_app, TestApp};
+use crate::utils::helpers::{spawn_app, ConfirmationLinks, TestApp};
 
 async fn create_unconfirmed_subscriber(app: &TestApp) -> ConfirmationLinks {
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
@@ -66,7 +66,6 @@ async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
 
     assert_eq!(response.status().as_u16(), 200);
 }
-
 
 #[tokio::test]
 async fn newsletters_are_delivered_to_confirmed_subscribers() {

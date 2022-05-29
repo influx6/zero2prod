@@ -1,4 +1,5 @@
 PWD=$(shell pwd)
+TEST=
 
 coverage:
 	cargo tarpaulin --ignore-tests
@@ -23,6 +24,9 @@ docker-up:
 	sleep 3
 
 up:	docker-up cargo-ci
+
+test_one:
+	cargo test -- --show-output "${TEST}" | bunyan
 
 down:
 	docker-compose down -v --remove-orphans
