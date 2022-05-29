@@ -5,8 +5,10 @@ use actix_web::http::header::{HeaderMap, HeaderValue};
 use actix_web::http::{header, StatusCode};
 use actix_web::{web, HttpRequest, HttpResponse, ResponseError};
 use anyhow::{anyhow, Context};
+use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
 use secrecy::ExposeSecret;
 use secrecy::Secret;
+use sha3::Digest;
 use sqlx::PgPool;
 
 use crate::domain::subscriber_email::SubscriberEmail;
@@ -85,7 +87,7 @@ impl ResponseError for PublishError {
                 let header_value = HeaderValue::from_str(r#"Basic realm="publish""#).unwrap();
                 response
                     .headers_mut()
-                    .insert(header::WW_AUTHENTICATE, header_value);
+                    .insert(header::WWW_AUTHENTICATE, header_value);
                 response
             }
         }
@@ -173,26 +175,58 @@ fn basic_authentication(headers: &HeaderMap) -> Result<Credentials, anyhow::Erro
     })
 }
 
+#[tracing::instrument(name = "Validate credentials", skip(credentials, pool))]
 async fn validate_credentials(
     credentials: Credentials,
     pool: &PgPool,
 ) -> Result<uuid::Uuid, PublishError> {
-    let user_id: Option<_> = sqlx::query!(
+    // let hasher = Argon2::new(
+    //     Algorithm::Argon2id,
+    //     Version::V0x13,
+    //     Params::new(15000, 2, 1, None)
+    //         .context("Failed to build Argon2 parameters")
+    //         .map_err(PublishError::UnexpectedError)?,
+    // );
+
+    let (user_id, expected_password_hash) = get_stored_credentials(&credentials.username, &pool)
+        .await
+        .map_err(PublishError::UnexpectedError)?
+        .ok_or_else(|| PublishError::AuthError(anyhow::anyhow!("unknown username")));
+
+    let expected_hash_password = PasswordHash::new(&expected_password_hash.expose_secret())
+        .context("Failed to parse hash in PHC string format.")
+        .map_err(PublishError::UnexpectedError)?;
+
+    tracing::info_span!("Verify password hash")
+        .in_scope(|| {
+            Argon2::default().verify_password(
+                credentials.password.expose_secret().as_bytes(),
+                &expected_hash_password,
+            )
+        })
+        .context("invalid password")
+        .map_err(PublishError::AuthError)?;
+
+    Ok(user_id)
+}
+
+#[tracing::instrument(name = "Get stored credentials", skip(username, pool))]
+async fn get_stored_credentials(
+    username: &str,
+    pool: &PgPool,
+) -> Result<Option<(uuid::Uuid, Secret<String>)>, anyhow::Error> {
+    let row: Option<_> = sqlx::query!(
         r#"
-            SELECT user_id
+            SELECT user_id, password_hash
             FROM users
-            WHERE username = $1 AND password = $2
+            WHERE username = $1
         "#,
         credentials.username,
-        credentials.password.expose_secret()
     )
     .fetch_optional(pool)
     .await
     .context("Failed to perform a query to validate with auth credentials.")
-    .map_err(PublishError::UnexpectedError)?;
+    .map(|row| (row.user_id, Secret::new(row.password_hash)));
 
-    user_id
-        .map(|row| row.user_id)
-        .ok_or_else(|| anyhow::anyhow!("Invalid username or password."))
-        .map_err(PublishError::AuthError)
+    Ok(row)
 }
