@@ -1,9 +1,9 @@
 use std::fmt::{Display, Formatter};
 
+use actix_web::{HttpRequest, HttpResponse, ResponseError, web};
 use actix_web::body::BoxBody;
-use actix_web::http::header::{HeaderMap, HeaderValue};
 use actix_web::http::{header, StatusCode};
-use actix_web::{web, HttpRequest, HttpResponse, ResponseError};
+use actix_web::http::header::{HeaderMap, HeaderValue};
 use anyhow::{anyhow, Context};
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
 use secrecy::ExposeSecret;
@@ -42,14 +42,14 @@ async fn get_confirmed_subscribers(
         WHERE status = 'confirmed'
         "#,
     )
-    .fetch_all(pool)
-    .await?
-    .into_iter()
-    .map(|r| match SubscriberEmail::parse(r.email) {
-        Ok(email) => Ok(ConfirmedSubscriber { email }),
-        Err(error) => Err(anyhow::anyhow!(error)),
-    })
-    .collect();
+        .fetch_all(pool)
+        .await?
+        .into_iter()
+        .map(|r| match SubscriberEmail::parse(r.email) {
+            Ok(email) => Ok(ConfirmedSubscriber { email }),
+            Err(error) => Err(anyhow::anyhow!(error)),
+        })
+        .collect();
 
     Ok(rows)
 }
@@ -180,14 +180,6 @@ async fn validate_credentials(
     credentials: Credentials,
     pool: &PgPool,
 ) -> Result<uuid::Uuid, PublishError> {
-    // let hasher = Argon2::new(
-    //     Algorithm::Argon2id,
-    //     Version::V0x13,
-    //     Params::new(15000, 2, 1, None)
-    //         .context("Failed to build Argon2 parameters")
-    //         .map_err(PublishError::UnexpectedError)?,
-    // );
-
     let (user_id, expected_password_hash) = get_stored_credentials(&credentials.username, &pool)
         .await
         .map_err(PublishError::UnexpectedError)?
@@ -197,13 +189,18 @@ async fn validate_credentials(
         .context("Failed to parse hash in PHC string format.")
         .map_err(PublishError::UnexpectedError)?;
 
-    tracing::info_span!("Verify password hash")
-        .in_scope(|| {
-            Argon2::default().verify_password(
-                credentials.password.expose_secret().as_bytes(),
-                &expected_hash_password,
-            )
-        })
+    tokio::task::spawn_blocking(move || {
+        tracing::info_span!("Verify password hash")
+            .in_scope(|| {
+                Argon2::default().verify_password(
+                    credentials.password.expose_secret().as_bytes(),
+                    &expected_hash_password,
+                )
+            })
+    })
+        .await
+        .context("Failed to spawn blocking task.")
+        .map_err(PublishError::UnexpectedError)
         .context("invalid password")
         .map_err(PublishError::AuthError)?;
 
@@ -223,10 +220,10 @@ async fn get_stored_credentials(
         "#,
         credentials.username,
     )
-    .fetch_optional(pool)
-    .await
-    .context("Failed to perform a query to validate with auth credentials.")
-    .map(|row| (row.user_id, Secret::new(row.password_hash)));
+        .fetch_optional(pool)
+        .await
+        .context("Failed to perform a query to validate with auth credentials.")
+        .map(|row| (row.user_id, Secret::new(row.password_hash)));
 
     Ok(row)
 }
