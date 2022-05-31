@@ -8,6 +8,7 @@ use tracing_actix_web::TracingLogger;
 use crate::domain::application::ApplicationBaseUrl;
 use crate::mail::send_email::EmailClient;
 use crate::routes::health::health_check;
+use crate::routes::home::home;
 use crate::routes::newsletter::publish_newsletter;
 use crate::routes::subscription_confirm::confirm;
 use crate::routes::subscriptions::subscribe;
@@ -24,6 +25,7 @@ pub fn run(
     Ok(HttpServer::new(move || {
         App::new()
             .wrap(TracingLogger::default())
+            .route("/", web::get().to(home))
             .route("/health", web::get().to(health_check))
             .route("/subscriptions", web::post().to(subscribe))
             .route("/newsletters", web::post().to(publish_newsletter))
