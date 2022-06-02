@@ -9,6 +9,7 @@ use crate::domain::application::ApplicationBaseUrl;
 use crate::mail::send_email::EmailClient;
 use crate::routes::health::health_check;
 use crate::routes::home::home;
+use crate::routes::login::{login, login_form};
 use crate::routes::newsletter::publish_newsletter;
 use crate::routes::subscription_confirm::confirm;
 use crate::routes::subscriptions::subscribe;
@@ -26,6 +27,8 @@ pub fn run(
         App::new()
             .wrap(TracingLogger::default())
             .route("/", web::get().to(home))
+            .route("/login", web::post().to(login))
+            .route("/login", web::get().to(login_form))
             .route("/health", web::get().to(health_check))
             .route("/subscriptions", web::post().to(subscribe))
             .route("/newsletters", web::post().to(publish_newsletter))
