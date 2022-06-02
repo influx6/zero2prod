@@ -5,6 +5,7 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 
 use crate::config::{Configuration, DatabaseSettings};
+use crate::domain::application::HmacSecret;
 use crate::mail::send_email::EmailClient;
 use crate::run::run;
 
@@ -42,6 +43,7 @@ impl AppServer {
             db_connection,
             email_client,
             configuration.app.domain,
+            HmacSecret(configuration.app.hmac_secret.clone()),
         )?;
 
         Ok(Self {

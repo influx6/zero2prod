@@ -2,6 +2,8 @@
 port = 7890
 domain = "http://some-domain"
 host = "0.0.0.0"
+hnmac_secret = "super-long-and-secret-random-key-needed-to-verify-message-integrity"
+
 
 [database]
 port = 5432

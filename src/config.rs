@@ -94,6 +94,7 @@ pub struct AppConfig {
     pub port: u16,
     pub host: String,
     pub domain: String,
+    pub hmac_secret: Secret<String>,
 }
 
 #[derive(serde::Deserialize, Clone)]
