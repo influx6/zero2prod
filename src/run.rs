@@ -10,7 +10,7 @@ use crate::domain::application::{ApplicationBaseUrl, HmacSecret};
 use crate::mail::send_email::EmailClient;
 use crate::routes::health::health_check;
 use crate::routes::home::home;
-use crate::routes::login::{login, login_form};
+use crate::routes::login::{get::login_form, post::login};
 use crate::routes::newsletter::publish_newsletter;
 use crate::routes::subscription_confirm::confirm;
 use crate::routes::subscriptions::subscribe;
@@ -29,10 +29,12 @@ pub fn run(
     Ok(HttpServer::new(move || {
         App::new()
             .wrap(TracingLogger::default())
+            // get endpoints
             .route("/", web::get().to(home))
-            .route("/login", web::post().to(login))
             .route("/login", web::get().to(login_form))
             .route("/health", web::get().to(health_check))
+            // post endpoints
+            .route("/login", web::post().to(login))
             .route("/subscriptions", web::post().to(subscribe))
             .route("/newsletters", web::post().to(publish_newsletter))
             .route("/subscriptions/confirm", web::get().to(confirm))

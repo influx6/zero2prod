@@ -76,11 +76,35 @@ pub struct TestApp {
     pub port: u16,
     pub pool: PgPool,
     pub test_user: TestUser,
+    pub api_client: reqwest::Client,
 }
 
 impl TestApp {
+    pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
+        self.api_client
+            .post(&format!("{}/login", &self.addr))
+            .form(body)
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
+    pub async fn get_login_html(&self) -> String {
+        self.api_client
+            .get(&format!("{}/login", &self.addr))
+            .send()
+            .await
+            .expect("Failed to execute request")
+            .text()
+            .await
+            .unwrap()
+    }
+
     pub async fn post_newsletters(&self, body: serde_json::Value) -> reqwest::Response {
-        reqwest::Client::new()
+        self.api_client
             .post(&format!("{}/newsletters", &self.addr))
             .json(&body)
             .basic_auth(&self.test_user.username, Some(&self.test_user.password))
@@ -90,7 +114,7 @@ impl TestApp {
     }
 
     pub async fn post_subscriptions(&self, body: String) -> reqwest::Response {
-        reqwest::Client::new()
+        self.api_client
             .post(&format!("{}/subscriptions", &self.addr))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(body)
@@ -124,11 +148,22 @@ impl TestApp {
     }
 }
 
+pub fn assert_is_redirect_to(response: &reqwest::Response, location: &str) {
+    assert_eq!(response.status().as_u16(), 303);
+    assert_eq!(response.headers().get("Location").unwrap(), location);
+}
+
 pub async fn spawn_app() -> TestApp {
     Lazy::force(&TRACING);
 
     let email_server = MockServer::start().await;
     let email_server_url = email_server.uri();
+
+    let api_client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .cookie_store(true)
+        .build()
+        .unwrap();
 
     let configuration = {
         let mut c = get_configuration().expect("should load configuration");
@@ -160,6 +195,7 @@ pub async fn spawn_app() -> TestApp {
         pool,
         addr,
         test_user,
+        api_client,
         email_server,
         port: application_port,
         config: configuration,
