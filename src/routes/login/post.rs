@@ -1,15 +1,17 @@
+use std::fmt::Formatter;
+
 use actix_web::body::BoxBody;
 use actix_web::cookie::Cookie;
 use actix_web::error::InternalError;
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::{web, HttpResponse, ResponseError};
+use actix_web_flash_messages::FlashMessage;
 use hmac::{Hmac, Mac};
 use reqwest::header::LOCATION;
 use secrecy::ExposeSecret;
 use secrecy::Secret;
 use sqlx::PgPool;
-use std::fmt::Formatter;
 use tracing;
 
 use crate::authentication::auth::{validate_credentials, AuthError, Credentials};
@@ -80,6 +82,8 @@ pub async fn login(
             //     mac.update(query_string.as_bytes());
             //     mac.finalize().into_bytes()
             // };
+
+            FlashMessage::error(e.to_string()).send();
 
             // let target_location = format!("/login?{}&tag={:x}", query_string, hmac_tag);
             let response = HttpResponse::SeeOther()
