@@ -1,5 +1,6 @@
 use std::fmt::Formatter;
 
+use actix_session::Session;
 use actix_web::body::BoxBody;
 use actix_web::cookie::Cookie;
 use actix_web::error::InternalError;
@@ -16,6 +17,7 @@ use tracing;
 
 use crate::authentication::auth::{validate_credentials, AuthError, Credentials};
 use crate::domain::application::HmacSecret;
+use crate::session_state::TypedSession;
 use crate::utils::error_helpers::error_chain_fmt;
 
 #[derive(thiserror::Error)]
@@ -45,13 +47,22 @@ pub struct FormData {
     password: Secret<String>,
 }
 
+fn login_redirect(e: LoginError) -> InternalError<LoginError> {
+    FlashMessage::error(e.to_string()).send();
+    let response = HttpResponse::SeeOther()
+        .insert_header((LOCATION, "/login"))
+        .finish();
+    InternalError::from_response(e, response)
+}
+
 #[tracing::instrument(
-skip(form, pool),
+skip(form, pool, session),
 fields(username = tracing::field::Empty, user_id = tracing::field::Empty)
 )]
 pub async fn login(
     form: web::Form<FormData>,
     pool: web::Data<PgPool>,
+    session: TypedSession,
     // secret: web::Data<HmacSecret>,
 ) -> Result<HttpResponse, InternalError<LoginError>> {
     let credentials = Credentials {
@@ -63,8 +74,14 @@ pub async fn login(
     match validate_credentials(credentials, &pool).await {
         Ok(user_id) => {
             tracing::Span::current().record("user_id", &tracing::field::display(&user_id));
+
+            session.renew();
+            session
+                .insert_user_id(user_id)
+                .map_err(|e| login_redirect(LoginError::UnexpectedError(e.into())))?;
+
             Ok(HttpResponse::SeeOther()
-                .insert_header((LOCATION, "/"))
+                .insert_header((LOCATION, "/admin/dashboard"))
                 .finish())
         }
         Err(e) => {
@@ -83,17 +100,18 @@ pub async fn login(
             //     mac.finalize().into_bytes()
             // };
 
-            FlashMessage::error(e.to_string()).send();
-
-            // let target_location = format!("/login?{}&tag={:x}", query_string, hmac_tag);
-            let response = HttpResponse::SeeOther()
-                .insert_header((LOCATION, "/login"))
-                .cookie(Cookie::new("_flash", e.to_string()))
-                .finish();
-
-            // wraps our expected error still providing context on error but also
-            // a response to be sent to the caller of request.
-            Err(InternalError::from_response(e, response))
+            // FlashMessage::error(e.to_string()).send();
+            //
+            // // let target_location = format!("/login?{}&tag={:x}", query_string, hmac_tag);
+            // let response = HttpResponse::SeeOther()
+            //     .insert_header((LOCATION, "/login"))
+            //     .cookie(Cookie::new("_flash", e.to_string()))
+            //     .finish();
+            //
+            // // wraps our expected error still providing context on error but also
+            // // a response to be sent to the caller of request.
+            // Err(InternalError::from_response(e, response))
+            Err(login_redirect(e))
         }
     }
 }

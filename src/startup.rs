@@ -16,7 +16,7 @@ pub struct AppServer {
 }
 
 impl AppServer {
-    pub async fn build(configuration: Configuration) -> Result<Self, std::io::Error> {
+    pub async fn build(configuration: Configuration) -> Result<Self, anyhow::Error> {
         let db_connection = get_connection_pool(&configuration.database);
 
         let listener = TcpListener::bind(format!(
@@ -42,9 +42,11 @@ impl AppServer {
             listener,
             db_connection,
             email_client,
+            configuration.redis,
             configuration.app.domain,
             HmacSecret(configuration.app.hmac_secret.clone()),
-        )?;
+        )
+        .await?;
 
         Ok(Self {
             port,

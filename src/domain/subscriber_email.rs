@@ -1,7 +1,6 @@
 //! src/domain/subscriber_email.rs
 
 use std::fmt::Formatter;
-use std::ops::Sub;
 
 use validator::validate_email;
 

@@ -98,7 +98,29 @@ pub struct AppConfig {
 }
 
 #[derive(serde::Deserialize, Clone)]
+pub struct RedisConfig {
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub port: u16,
+    pub host: String,
+    pub username: String,
+    pub password: Secret<String>,
+}
+
+impl RedisConfig {
+    pub fn get_url(&self) -> String {
+        format!(
+            "redis://{}:{}@{}:{}",
+            self.username,
+            self.password.expose_secret(),
+            self.host,
+            self.port
+        )
+    }
+}
+
+#[derive(serde::Deserialize, Clone)]
 pub struct Configuration {
+    pub redis: RedisConfig,
     pub email_client: EmailClientSettings,
     pub database: DatabaseSettings,
     pub app: AppConfig,
