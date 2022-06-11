@@ -7,6 +7,7 @@ use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
 use actix_web_flash_messages::storage::CookieMessageStore;
 use actix_web_flash_messages::FlashMessagesFramework;
+use actix_web_lab::middleware::from_fn;
 use secrecy::{ExposeSecret, Secret};
 use sqlx::PgPool;
 use tracing_actix_web::TracingLogger;
@@ -59,7 +60,7 @@ pub async fn run(
             .route("/subscriptions/confirm", web::get().to(confirm))
             .service(
                 web::scope("/admin")
-                    .wrap(reject_anonymous_users)
+                    .wrap(from_fn(reject_anonymous_users))
                     .route("/dashboard", web::get().to(admin_dashboard)),
             )
             .app_data(connection.clone())

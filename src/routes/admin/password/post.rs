@@ -3,7 +3,7 @@ use actix_web_flash_messages::FlashMessage;
 use secrecy::{ExposeSecret, Secret};
 use sqlx::PgPool;
 
-use crate::authentication::auth::{validate_credentials, AuthError, Credentials};
+use crate::authentication::auth::{change_password, validate_credentials, AuthError, Credentials};
 use crate::authentication::middleware::UserId;
 use crate::routes::admin::dashboard::get_username;
 use crate::utils::middleware::{e500, see_other};
@@ -15,7 +15,7 @@ pub struct FormData {
     new_password_check: Secret<String>,
 }
 
-pub async fn change_password(
+pub async fn change_password_endpoint(
     form: web::Form<FormData>,
     pool: web::Data<PgPool>,
     user_id: web::ReqData<UserId>, // extract request data from the request extensions using `ReqData`
@@ -42,7 +42,7 @@ pub async fn change_password(
             AuthError::UnexpectedError(_) => Err(e500(e)),
         };
     }
-    crate::authentication::change_password(*user_id, form.0.new_password, &pool)
+    change_password(*user_id, form.0.new_password, &pool)
         .await
         .map_err(e500)?;
     FlashMessage::error("Your password has been changed.").send();
